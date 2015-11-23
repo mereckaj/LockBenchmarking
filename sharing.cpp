@@ -239,7 +239,7 @@ void saveCounters()
 WORKER worker(void *vthread)
 {
     int thread = (int)((size_t) vthread);
-
+    int ncpu = getNumberOfCPUs();
     UINT64 n = 0;
 
     volatile VINT *gt = GINDX(thread);
@@ -319,319 +319,319 @@ WORKER worker(void *vthread)
 //
 // main
 //
-int main()
-{
-    ncpu = getNumberOfCPUs();   // number of logical CPUs
-    maxThread = 2 * ncpu;       // max number of threads
-
-    //
-    // get date
-    //
-    char dateAndTime[256];
-    getDateAndTime(dateAndTime, sizeof(dateAndTime));
-
-    //
-    // console output
-    //
-    cout << getHostName() << " " << getOSName() << " sharing " << (is64bitExe() ? "(64" : "(32") << "bit EXE)" ;
-#ifdef _DEBUG
-    cout << " DEBUG";
-#else
-    cout << " RELEASE";
-#endif
-    cout << " [" << OPSTR << "]" << " NCPUS=" << ncpu << " RAM=" << (getPhysicalMemSz() + GB - 1) / GB << "GB " << dateAndTime << endl;
-#ifdef COUNTER64
-    cout << "COUNTER64";
-#else
-    cout << "COUNTER32";
-#endif
-#ifdef FALSESHARING
-    cout << " FALSESHARING";
-#endif
-    cout << " NOPS=" << NOPS << " NSECONDS=" << NSECONDS << " OPTYP=" << OPTYP;
-#ifdef USEPMS
-    cout << " USEPMS";
-#endif
-    cout << endl;
-    cout << "Intel" << (cpu64bit() ? "64" : "32") << " family " << cpuFamily() << " model " << cpuModel() << " stepping " << cpuStepping() << " " << cpuBrandString() << endl;
-#ifdef USEPMS
-    cout << "performance monitoring version " << pmversion() << ", " << nfixedCtr() << " x " << fixedCtrW() << "bit fixed counters, " << npmc() << " x " << pmcW() << "bit performance counters" << endl;
-#endif
-
-    //
-    // get cache info
-    //
-    lineSz = getCacheLineSz();
-    //lineSz *= 2;
-
-    if ((&cnt3 >= &cnt0) && (&cnt3 < (&cnt0 + lineSz/sizeof(UINT64))))
-        cout << "Warning: cnt3 shares cache line used by cnt0" << endl;
-    if ((&cnt3 >= &cnt1) && (&cnt3 < (&cnt1 + lineSz / sizeof(UINT64))))
-        cout << "Warning: cnt3 shares cache line used by cnt1" << endl;
-    if ((&cnt3 >= &cnt2) && (&cnt3 < (&cnt2 + lineSz / sizeof(UINT64))))
-        cout << "Warning: cnt2 shares cache line used by cnt1" << endl;
-
-#if OPTYP == 3
-
-    //
-    // check if RTM supported
-    //
-    if (!rtmSupported()) {
-        cout << "RTM (restricted transactional memory) NOT supported by this CPU" << endl;
-        quit();
-        return 1;
-    }
-
-#endif
-
-    cout << endl;
-
-    //
-    // allocate global variable
-    //
-    // NB: each element in g is stored in a different cache line to stop false sharing
-    //
-    threadH = (THREADH*) ALIGNED_MALLOC(maxThread*sizeof(THREADH), lineSz);             // thread handles
-    ops = (UINT64*) ALIGNED_MALLOC(maxThread*sizeof(UINT64), lineSz);                   // for ops per thread
-
-#if OPTYP == 3
-    aborts = (UINT64*) ALIGNED_MALLOC(maxThread*sizeof(UINT64), lineSz);                // for counting aborts
-#endif
-
-#ifdef FALSESHARING
-    g = (VINT*) ALIGNED_MALLOC((maxThread+1)*sizeof(VINT), lineSz);                     // local and shared global variables
-#else
-    g = (VINT*) ALIGNED_MALLOC((maxThread + 1)*lineSz, lineSz);                         // local and shared global variables
-#endif
-
-#ifdef USEPMS
-
-    fixedCtr0 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);      // for fixed counter 0 results
-    fixedCtr1 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);      // for fixed counter 1 results
-    fixedCtr2 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);      // for fixed counter 2 results
-    pmc0 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);           // for performance counter 0 results
-    pmc1 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);           // for performance counter 1 results
-    pmc2 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);           // for performance counter 2 results
-    pmc3 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);           // for performance counter 3 results
-
-#endif
-
-    r = (Result*) ALIGNED_MALLOC(5*maxThread*sizeof(Result), lineSz);                   // for results
-    memset(r, 0, 5*maxThread*sizeof(Result));                                           // zero
-
-    indx = 0;
-
-#ifdef USEPMS
-    //
-    // set up performance monitor counters
-    //
-    setupCounters();
-#endif
-
-    //
-    // use thousands comma separator
-    //
-    setCommaLocale();
-
-    //
-    // header
-    //
-    cout << "sharing";
-    cout << setw(4) << "nt";
-    cout << setw(6) << "rt";
-    cout << setw(16) << "ops";
-    cout << setw(6) << "rel";
-#if OPTYP == 3
-    cout << setw(8) << "commit";
-#endif
-    cout << endl;
-
-    cout << "-------";              // sharing
-    cout << setw(4) << "--";        // nt
-    cout << setw(6) << "--";        // rt
-    cout << setw(16) << "---";      // ops
-    cout << setw(6) << "---";       // rel
-#if OPTYP == 3
-    cout << setw(8) << "------";
-#endif
-    cout << endl;
-
-    //
-    // boost process priority
-    // boost current thread priority to make sure all threads created before they start to run
-    //
-#ifdef WIN32
-//  SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
-//  SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
-#endif
-
-    //
-    // run tests
-    //
-    UINT64 ops1 = 1;
-
-    for (sharing = 0; sharing <= 100; sharing += 25) {
-
-        for (int nt = 1; nt <= maxThread; nt *= 2, indx++) {
-
-            //
-            //  zero shared memory
-            //
-            for (int thread = 0; thread < nt; thread++)
-                *(GINDX(thread)) = 0;   // thread local
-            *(GINDX(maxThread)) = 0;    // shared
-
-#ifdef USEPMS
-            zeroCounters();             // zero PMS counters
-#endif
-
-            //
-            // get start time
-            //
-            tstart = getWallClockMS();
-
-            //
-            // create worker threads
-            //
-            for (int thread = 0; thread < nt; thread++)
-                createThread(&threadH[thread], worker, (void*)(size_t)thread);
-
-            //
-            // wait for ALL worker threads to finish
-            //
-            waitForThreadsToFinish(nt, threadH);
-            UINT64 rt = getWallClockMS() - tstart;
-
-#ifdef USEPMS
-            saveCounters();             // save PMS counters
-#endif
-
-            //
-            // save results and output summary to console
-            //
-            for (int thread = 0; thread < nt; thread++) {
-                r[indx].ops += ops[thread];
-                r[indx].incs += *(GINDX(thread));
-#if OPTYP == 3
-                r[indx].aborts += aborts[thread];
-#endif
-            }
-            r[indx].incs += *(GINDX(maxThread));
-            if ((sharing == 0) && (nt == 1))
-                ops1 = r[indx].ops;
-            r[indx].sharing = sharing;
-            r[indx].nt = nt;
-            r[indx].rt = rt;
-
-            cout << setw(6) << sharing << "%";
-            cout << setw(4) << nt;
-            cout << setw(6) << fixed << setprecision(2) << (double) rt / 1000;
-            cout << setw(16) << r[indx].ops;
-            cout << setw(6) << fixed << setprecision(2) << (double) r[indx].ops / ops1;
-
-#if OPTYP == 3
-
-            cout << setw(7) << fixed << setprecision(0) << 100.0 * (r[indx].ops - r[indx].aborts) / r[indx].ops << "%";
-
-#endif
-
-            if (r[indx].ops != r[indx].incs)
-                cout << " ERROR incs " << setw(3) << fixed << setprecision(0) << 100.0 * r[indx].incs / r[indx].ops << "% effective";
-
-            cout << endl;
-
-            //
-            // delete thread handles
-            //
-            for (int thread = 0; thread < nt; thread++)
-                closeThread(threadH[thread]);
-
-        }
-
-    }
-
-    cout << endl;
-
-    //
-    // output results so they can easily be pasted into a spread sheet from console window
-    //
-    setLocale();
-    cout << "sharing/nt/rt/ops/incs";
-#if OPTYP == 3
-    cout << "/aborts";
-#endif
-    cout << endl;
-    for (UINT i = 0; i < indx; i++) {
-        cout << r[i].sharing << "/"  << r[i].nt << "/" << r[i].rt << "/"  << r[i].ops << "/" << r[i].incs;
-#if OPTYP == 3
-        cout << "/" << r[i].aborts;
-#endif      
-        cout << endl;
-    }
-    cout << endl;
-
-#ifdef USEPMS
-
-    //
-    // output PMS counters
-    //
-    cout << "FIXED_CTR0 instructions retired" << endl;
-    for (UINT i = 0; i < indx; i++) {
-        for (UINT j = 0; j < ncpu; j++)
-            cout << ((j) ? "/" : "") << fixedCtr0[i*ncpu + j];
-        cout << endl;
-    }
-    cout << endl;
-    cout << "FIXED_CTR1 unhalted core cycles" << endl;
-    for (UINT i = 0; i < indx; i++) {
-        for (UINT j = 0; j < ncpu; j++)
-            cout << ((j) ? "/" : "") << fixedCtr1[i*ncpu + j];
-        cout << endl;
-    }
-    cout << endl;
-    cout << "FIXED_CTR2 unhalted reference cycles" << endl;
-    for (UINT i = 0; i < indx; i++) {
-        for (UINT j = 0; j < ncpu; j++ )
-            cout << ((j) ? "/" : "") << fixedCtr2[i*ncpu + j];
-        cout << endl;
-    }
-    cout << endl;
-    cout << "PMC0 RTM RETIRED START" << endl;
-    for (UINT i = 0; i < indx; i++) {
-        for (UINT j = 0; j < ncpu; j++ )
-            cout << ((j) ? "/" : "") << pmc0[i*ncpu + j];
-        cout << endl;
-    }
-    cout << endl;
-    cout << "PMC1 RTM RETIRED COMMIT" << endl;
-    for (UINT i = 0; i < indx; i++) {
-        for (UINT j = 0; j < ncpu; j++ )
-            cout << ((j) ? "/" : "") << pmc1[i*ncpu + j];
-        cout << endl;
-    }
-    cout << endl;
-    cout << "PMC2 unhalted core cycles in committed transactions" << endl;
-    for (UINT i = 0; i < indx; i++) {
-        for (UINT j = 0; j < ncpu; j++ )
-            cout << ((j) ? "/" : "") << pmc2[i*ncpu + j];
-        cout << endl;
-    }
-    cout << endl;
-    cout << "PMC3 unhalted core cycles in committed and aborted transactions" << endl;
-    for (UINT i = 0; i < indx; i++) {
-        for (UINT j = 0; j < ncpu; j++ )
-            cout << ((j) ? "/" : "") << pmc3[i*ncpu + j];
-        cout << endl;
-    }
-
-    closePMS();                 // close PMS counters
-
-#endif
-
-    quit();
-
-    return 0;
-
-}
+//int main()
+//{
+//    ncpu = getNumberOfCPUs();   // number of logical CPUs
+//    maxThread = 2 * ncpu;       // max number of threads
+//
+//    //
+//    // get date
+//    //
+//    char dateAndTime[256];
+//    getDateAndTime(dateAndTime, sizeof(dateAndTime));
+//
+//    //
+//    // console output
+//    //
+//    cout << getHostName() << " " << getOSName() << " sharing " << (is64bitExe() ? "(64" : "(32") << "bit EXE)" ;
+//#ifdef _DEBUG
+//    cout << " DEBUG";
+//#else
+//    cout << " RELEASE";
+//#endif
+//    cout << " [" << OPSTR << "]" << " NCPUS=" << ncpu << " RAM=" << (getPhysicalMemSz() + GB - 1) / GB << "GB " << dateAndTime << endl;
+//#ifdef COUNTER64
+//    cout << "COUNTER64";
+//#else
+//    cout << "COUNTER32";
+//#endif
+//#ifdef FALSESHARING
+//    cout << " FALSESHARING";
+//#endif
+//    cout << " NOPS=" << NOPS << " NSECONDS=" << NSECONDS << " OPTYP=" << OPTYP;
+//#ifdef USEPMS
+//    cout << " USEPMS";
+//#endif
+//    cout << endl;
+//    cout << "Intel" << (cpu64bit() ? "64" : "32") << " family " << cpuFamily() << " model " << cpuModel() << " stepping " << cpuStepping() << " " << cpuBrandString() << endl;
+//#ifdef USEPMS
+//    cout << "performance monitoring version " << pmversion() << ", " << nfixedCtr() << " x " << fixedCtrW() << "bit fixed counters, " << npmc() << " x " << pmcW() << "bit performance counters" << endl;
+//#endif
+//
+//    //
+//    // get cache info
+//    //
+//    lineSz = getCacheLineSz();
+//    //lineSz *= 2;
+//
+//    if ((&cnt3 >= &cnt0) && (&cnt3 < (&cnt0 + lineSz/sizeof(UINT64))))
+//        cout << "Warning: cnt3 shares cache line used by cnt0" << endl;
+//    if ((&cnt3 >= &cnt1) && (&cnt3 < (&cnt1 + lineSz / sizeof(UINT64))))
+//        cout << "Warning: cnt3 shares cache line used by cnt1" << endl;
+//    if ((&cnt3 >= &cnt2) && (&cnt3 < (&cnt2 + lineSz / sizeof(UINT64))))
+//        cout << "Warning: cnt2 shares cache line used by cnt1" << endl;
+//
+//#if OPTYP == 3
+//
+//    //
+//    // check if RTM supported
+//    //
+//    if (!rtmSupported()) {
+//        cout << "RTM (restricted transactional memory) NOT supported by this CPU" << endl;
+//        quit();
+//        return 1;
+//    }
+//
+//#endif
+//
+//    cout << endl;
+//
+//    //
+//    // allocate global variable
+//    //
+//    // NB: each element in g is stored in a different cache line to stop false sharing
+//    //
+//    threadH = (THREADH*) ALIGNED_MALLOC(maxThread*sizeof(THREADH), lineSz);             // thread handles
+//    ops = (UINT64*) ALIGNED_MALLOC(maxThread*sizeof(UINT64), lineSz);                   // for ops per thread
+//
+//#if OPTYP == 3
+//    aborts = (UINT64*) ALIGNED_MALLOC(maxThread*sizeof(UINT64), lineSz);                // for counting aborts
+//#endif
+//
+//#ifdef FALSESHARING
+//    g = (VINT*) ALIGNED_MALLOC((maxThread+1)*sizeof(VINT), lineSz);                     // local and shared global variables
+//#else
+//    g = (VINT*) ALIGNED_MALLOC((maxThread + 1)*lineSz, lineSz);                         // local and shared global variables
+//#endif
+//
+//#ifdef USEPMS
+//
+//    fixedCtr0 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);      // for fixed counter 0 results
+//    fixedCtr1 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);      // for fixed counter 1 results
+//    fixedCtr2 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);      // for fixed counter 2 results
+//    pmc0 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);           // for performance counter 0 results
+//    pmc1 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);           // for performance counter 1 results
+//    pmc2 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);           // for performance counter 2 results
+//    pmc3 = (UINT64*) ALIGNED_MALLOC(5*maxThread*ncpu*sizeof(UINT64), lineSz);           // for performance counter 3 results
+//
+//#endif
+//
+//    r = (Result*) ALIGNED_MALLOC(5*maxThread*sizeof(Result), lineSz);                   // for results
+//    memset(r, 0, 5*maxThread*sizeof(Result));                                           // zero
+//
+//    indx = 0;
+//
+//#ifdef USEPMS
+//    //
+//    // set up performance monitor counters
+//    //
+//    setupCounters();
+//#endif
+//
+//    //
+//    // use thousands comma separator
+//    //
+//    setCommaLocale();
+//
+//    //
+//    // header
+//    //
+//    cout << "sharing";
+//    cout << setw(4) << "nt";
+//    cout << setw(6) << "rt";
+//    cout << setw(16) << "ops";
+//    cout << setw(6) << "rel";
+//#if OPTYP == 3
+//    cout << setw(8) << "commit";
+//#endif
+//    cout << endl;
+//
+//    cout << "-------";              // sharing
+//    cout << setw(4) << "--";        // nt
+//    cout << setw(6) << "--";        // rt
+//    cout << setw(16) << "---";      // ops
+//    cout << setw(6) << "---";       // rel
+//#if OPTYP == 3
+//    cout << setw(8) << "------";
+//#endif
+//    cout << endl;
+//
+//    //
+//    // boost process priority
+//    // boost current thread priority to make sure all threads created before they start to run
+//    //
+//#ifdef WIN32
+////  SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
+////  SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+//#endif
+//
+//    //
+//    // run tests
+//    //
+//    UINT64 ops1 = 1;
+//
+//    for (sharing = 0; sharing <= 100; sharing += 25) {
+//
+//        for (int nt = 1; nt <= maxThread; nt *= 2, indx++) {
+//
+//            //
+//            //  zero shared memory
+//            //
+//            for (int thread = 0; thread < nt; thread++)
+//                *(GINDX(thread)) = 0;   // thread local
+//            *(GINDX(maxThread)) = 0;    // shared
+//
+//#ifdef USEPMS
+//            zeroCounters();             // zero PMS counters
+//#endif
+//
+//            //
+//            // get start time
+//            //
+//            tstart = getWallClockMS();
+//
+//            //
+//            // create worker threads
+//            //
+//            for (int thread = 0; thread < nt; thread++)
+//                createThread(&threadH[thread], worker, (void*)(size_t)thread);
+//
+//            //
+//            // wait for ALL worker threads to finish
+//            //
+//            waitForThreadsToFinish(nt, threadH);
+//            UINT64 rt = getWallClockMS() - tstart;
+//
+//#ifdef USEPMS
+//            saveCounters();             // save PMS counters
+//#endif
+//
+//            //
+//            // save results and output summary to console
+//            //
+//            for (int thread = 0; thread < nt; thread++) {
+//                r[indx].ops += ops[thread];
+//                r[indx].incs += *(GINDX(thread));
+//#if OPTYP == 3
+//                r[indx].aborts += aborts[thread];
+//#endif
+//            }
+//            r[indx].incs += *(GINDX(maxThread));
+//            if ((sharing == 0) && (nt == 1))
+//                ops1 = r[indx].ops;
+//            r[indx].sharing = sharing;
+//            r[indx].nt = nt;
+//            r[indx].rt = rt;
+//
+//            cout << setw(6) << sharing << "%";
+//            cout << setw(4) << nt;
+//            cout << setw(6) << fixed << setprecision(2) << (double) rt / 1000;
+//            cout << setw(16) << r[indx].ops;
+//            cout << setw(6) << fixed << setprecision(2) << (double) r[indx].ops / ops1;
+//
+//#if OPTYP == 3
+//
+//            cout << setw(7) << fixed << setprecision(0) << 100.0 * (r[indx].ops - r[indx].aborts) / r[indx].ops << "%";
+//
+//#endif
+//
+//            if (r[indx].ops != r[indx].incs)
+//                cout << " ERROR incs " << setw(3) << fixed << setprecision(0) << 100.0 * r[indx].incs / r[indx].ops << "% effective";
+//
+//            cout << endl;
+//
+//            //
+//            // delete thread handles
+//            //
+//            for (int thread = 0; thread < nt; thread++)
+//                closeThread(threadH[thread]);
+//
+//        }
+//
+//    }
+//
+//    cout << endl;
+//
+//    //
+//    // output results so they can easily be pasted into a spread sheet from console window
+//    //
+//    setLocale();
+//    cout << "sharing/nt/rt/ops/incs";
+//#if OPTYP == 3
+//    cout << "/aborts";
+//#endif
+//    cout << endl;
+//    for (UINT i = 0; i < indx; i++) {
+//        cout << r[i].sharing << "/"  << r[i].nt << "/" << r[i].rt << "/"  << r[i].ops << "/" << r[i].incs;
+//#if OPTYP == 3
+//        cout << "/" << r[i].aborts;
+//#endif
+//        cout << endl;
+//    }
+//    cout << endl;
+//
+//#ifdef USEPMS
+//
+//    //
+//    // output PMS counters
+//    //
+//    cout << "FIXED_CTR0 instructions retired" << endl;
+//    for (UINT i = 0; i < indx; i++) {
+//        for (UINT j = 0; j < ncpu; j++)
+//            cout << ((j) ? "/" : "") << fixedCtr0[i*ncpu + j];
+//        cout << endl;
+//    }
+//    cout << endl;
+//    cout << "FIXED_CTR1 unhalted core cycles" << endl;
+//    for (UINT i = 0; i < indx; i++) {
+//        for (UINT j = 0; j < ncpu; j++)
+//            cout << ((j) ? "/" : "") << fixedCtr1[i*ncpu + j];
+//        cout << endl;
+//    }
+//    cout << endl;
+//    cout << "FIXED_CTR2 unhalted reference cycles" << endl;
+//    for (UINT i = 0; i < indx; i++) {
+//        for (UINT j = 0; j < ncpu; j++ )
+//            cout << ((j) ? "/" : "") << fixedCtr2[i*ncpu + j];
+//        cout << endl;
+//    }
+//    cout << endl;
+//    cout << "PMC0 RTM RETIRED START" << endl;
+//    for (UINT i = 0; i < indx; i++) {
+//        for (UINT j = 0; j < ncpu; j++ )
+//            cout << ((j) ? "/" : "") << pmc0[i*ncpu + j];
+//        cout << endl;
+//    }
+//    cout << endl;
+//    cout << "PMC1 RTM RETIRED COMMIT" << endl;
+//    for (UINT i = 0; i < indx; i++) {
+//        for (UINT j = 0; j < ncpu; j++ )
+//            cout << ((j) ? "/" : "") << pmc1[i*ncpu + j];
+//        cout << endl;
+//    }
+//    cout << endl;
+//    cout << "PMC2 unhalted core cycles in committed transactions" << endl;
+//    for (UINT i = 0; i < indx; i++) {
+//        for (UINT j = 0; j < ncpu; j++ )
+//            cout << ((j) ? "/" : "") << pmc2[i*ncpu + j];
+//        cout << endl;
+//    }
+//    cout << endl;
+//    cout << "PMC3 unhalted core cycles in committed and aborted transactions" << endl;
+//    for (UINT i = 0; i < indx; i++) {
+//        for (UINT j = 0; j < ncpu; j++ )
+//            cout << ((j) ? "/" : "") << pmc3[i*ncpu + j];
+//        cout << endl;
+//    }
+//
+//    closePMS();                 // close PMS counters
+//
+//#endif
+//
+//    quit();
+//
+//    return 0;
+//
+//}
 
 // eof
