@@ -1,39 +1,87 @@
-//
-// Created by mereckaj on 12/2/15.
-//
-
+#include "Headers/helper.h"
+#include "Headers/BakeryLock.hpp"
+#include "Headers/TestAndSetLock.hpp"
 #include "Headers/locks.hpp"
+#include "Headers/TestAndTestAndSetLock.hpp"
 
-void Bakery::init(int mt) {
+#include <iostream>
+#include <assert.h>
+#include <lcms.h>
+
+#define NOPS 10000
+#define NSECONDS 1
+
+/*
+ * 0 = Atomic Increment
+ * 1 = Bakery lokc
+ * 2 = TestAndSet lock
+ * 3 = TestAndTestAndSet lock (Optimistic)
+ * 4 = TestAndTestAndSet lock (Pessimistic)
+ * 5 = MCS
+ */
+
+#define LOCK_TYPE 5
+
+
+BakeryLock bakeryLock;
+TestAndSetLock testAndSetLock;
+TestAndTestAndSetLock testAndTestAndSetLock;
+volatile UINT64 counter = 0;
+UINT64 tstart;
+
+WORKER worker(void *vthread) {
     using namespace std;
-    maxThreads = (unsigned int) mt;
-    entering = new volatile bool[maxThreads];
-    numbers = new volatile UINT[maxThreads];
+    int tid = (int) ((size_t) vthread);
+    UINT64 n = 0;
     counter = 0;
-}
 
-void Bakery::acquire(int tid) {
-    entering[tid] = true;
-    numbers [tid] = 1 + max();
-    entering[tid] = false;
-    for(UINT i = 0; i < maxThreads;i++){
-        while(entering[i]);
-        while(numbers[i] != 0 && ( numbers[tid] > numbers[i]  || (numbers[tid] == numbers[i] && tid > i)));
-    }
-}
+#if LOCK_TYPE == 5
+    /*
+     * Get the thread local storages key for thsi thread
+    */
+    pthread_key_t tlsIndex;
+    TLSALLOC(tlsIndex);
+    /*
+     * Create a node for this thread
+     */
+    QNode *node = new QNode();
 
-void Bakery::release(int tid) {
-    numbers[tid] = 0;
-}
+    /*
+     * Make the node local to this thread
+     */
+    TLSSETVALUE(tlsIndex, node);
+#endif
 
-void Bakery::inc(){
-    counter++;
-}
-UINT Bakery::max() {
-    UINT max;
-    for(UINT i = 0; i < maxThreads;i++){
-        if (numbers[i] > max){
-            max = numbers[i];
+    tstart = getWallClockMS();
+    while (1) {
+        for (int i = 0; i < NOPS / 4; i++) {
+#if LOCK_TYPE == 0
+            InterlockedIncrement64(&counter);
+#elif LOCK_TYPE == 1
+            bakeryLock.acquire(tid);
+            bakeryLock.inc();
+            bakeryLock.release(tid);
+#elif LOCK_TYPE == 2
+            testAndSetLock.acquire();
+            testAndSetLock.inc();
+            testAndSetLock.release();
+#elif LOCK_TYPE == 3
+            testAndTestAndSetLock.acquireOptimistic();
+                testAndTestAndSetLock.inc();
+                testAndTestAndSetLock.release();
+#elif LOCK_TYPE == 4
+            testAndTestAndSetLock.acquirePessimistic();
+            testAndTestAndSetLock.inc();
+            testAndTestAndSetLock.release();
+#elif LOCK_TYPE == 5
+            mcsLock.acquire(tlsIndex);
+            cout << tid << endl;
+//            mcsLock.inc();
+            mcsLock.release(tlsIndex);
+            #endif
         }
+        n += NOPS;
+        if ((getWallClockMS() - tstart) > NSECONDS * 1000)
+            break;
     }
 }

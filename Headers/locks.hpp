@@ -2,33 +2,21 @@
 // Created by mereckaj on 12/2/15.
 //
 
+#include "BakeryLock.hpp"
+#include "TestAndSetLock.hpp"
+#include "TestAndTestAndSetLock.hpp"
+#include "MCS.hpp"
+
 #ifndef ARCHLAB2_LOCKS_HPP
 #define ARCHLAB2_LOCKS_HPP
 
-#include <iostream>
-#include "helper.h"
+extern volatile UINT64 counter;
+extern int maxThreads;
 
-class Bakery{
-public:
+extern BakeryLock bakeryLock;
+extern TestAndSetLock testAndSetLock;
+extern TestAndTestAndSetLock testAndTestAndSetLock;
+extern MCSLock mcsLock;
 
-    void acquire(int i);
-
-    void release(int i);
-
-    void init(int mt);
-
-    volatile unsigned int counter;
-
-private:
-
-    volatile bool* entering;
-
-    volatile UINT* numbers;
-
-    inline unsigned int max();
-
-    unsigned int maxThreads;
-
-    void inc();
-};
+WORKER worker(void* vthread);
 #endif //ARCHLAB2_LOCKS_HPP
