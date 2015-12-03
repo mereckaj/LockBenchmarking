@@ -1,36 +1,14 @@
+#include <stdlib.h>
 #include <iostream>
-#include "helper.h"
-#include "stdafx.h"
-#include "helper.cpp"
-#include "sharing.cpp"
-#define SHARE_RANGE_UBOUND 100
+#include "Headers/helper.h"
 
-using namespace std;
+int maxThreads;
 
-volatile int counter = 0;
-void * fucked(void * i){
-    cout<< "fucked" << endl;
-}
-int main() {
-    int numberOfCpu = getNumberOfCPUs();
+int main(int argc, char ** argv){
+    using namespace std;
 
-    for(UINT sharing = 0; sharing < SHARE_RANGE_UBOUND; sharing++){
+    ncpu = getNumberOfCPUs();   // number of logical CPUs
+    maxThreads = 2 * ncpu;       // max number of threads
 
-        for(UINT threadNumber = 1; threadNumber < numberOfCpu; threadNumber++){
-
-            UINT64 threadStart = getWallClockMS();
-            THREADH threadArray[threadNumber];
-
-            for(UINT thread = 0; thread < threadNumber;thread++){
-                createThread(&threadArray[thread],worker,(void*)thread);
-            }
-
-            waitForThreadsToFinish(threadNumber,threadArray);
-            UINT64 runtime = getWallClockMS() - threadStart;
-
-            for(UINT thread = 0; thread < threadNumber;thread++){
-                closeThread(threadArray[thread]);
-            }
-        }
-    }
+    return EXIT_SUCCESS;
 }

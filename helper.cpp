@@ -49,10 +49,10 @@
 // NB: gcc needs flags -mrtm -mrdrnd
 //
 
-#include "stdafx.h"         // pre-compiled headers
+#include "Headers/stdafx.h"         // pre-compiled headers
 #include <iostream>         // cout
 #include <iomanip>          // setprecision
-#include "helper.h"         //
+#include "Headers/helper.h"         //
 
 #ifdef WIN32
 #include <conio.h>          // _getch()
