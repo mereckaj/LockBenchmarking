@@ -57,8 +57,6 @@
 #define thread_local __declspec(thread)
 
 #elif __linux__
-
-#define BYTE    unsigned char
 #define UINT    unsigned int
 #define INT64   long long
 #define UINT64  unsigned long long

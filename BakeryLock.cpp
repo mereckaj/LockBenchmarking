@@ -12,28 +12,21 @@ void BakeryLock::init(int mt) {
     numbers = new volatile UINT[maxThreads];
     cnt = 0;
 }
-int c = 0;
 void BakeryLock::acquire(int tid) {
-    //TODO: Memory fences
-    entering[tid] = true;
     _mm_mfence();
+    entering[tid] = true;
     numbers [tid] = 1 + max();
     entering[tid] = false;
     for(UINT i = 0; i < maxThreads;i++){
         while(entering[i]);
+        _mm_mfence();
         while(numbers[i] != 0 && ( numbers[tid] > numbers[i]  || (numbers[tid] == numbers[i] && tid > i)));
     }
-    /*
-     * Check that no more than 1 thread has the lock at one time.
-     */
-    c++;
-    assert(c==1);
-    c--;
 }
 
 void BakeryLock::release(int tid) {
-    _mm_mfence();
     numbers[tid] = 0;
+    _mm_mfence();
 }
 
 void BakeryLock::inc(){

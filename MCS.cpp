@@ -3,52 +3,53 @@
 //
 
 #include "Headers/MCS.hpp"
-#include <iostream>
-using namespace std;
 #include "Headers/helper.h"
+#include <iostream>
+#include <lcms.h>
 
+using namespace std;
 int lineSize = getCacheLineSz();
 
 template <typename T>
-void *Aligned<T>::operator new(size_t t) {
-    size_t sz = (sz + lineSize - 1) / lineSize * lineSize;
-    return _aligned_malloc(sz, lineSize);
+void *Aligned<T>::operator new(size_t sz) {
+    size_t alignment = (sz + lineSize - 1) / lineSize * lineSize;
+    return  _aligned_malloc(sz, alignment);
 }
 
+template <typename T>
 void Aligned<T>::operator delete(void *pVoid) {
     _aligned_free(pVoid);
 }
 
-inline void MCSLock::acquire(pthread_key_t tlsIndex) {
-    volatile QNode *qn = (QNode *) TLSGETVALUE(tlsIndex);
+void MCSLock::acquire(QNode** lock,TLSINDEX tlsIndex) {
+    volatile QNode *qn = (QNode*) TLSGETVALUE(tlsIndex);
     qn->next = NULL;
-    volatile QNode *prev = (QNode *) InterlockedExchangePointer((PVOID) & lock, (PVOID) qn);
-    if (prev == NULL) {
+    volatile QNode *pred = (QNode*) InterlockedExchangePointer((PVOID*) lock, (PVOID) qn);
+    if (pred == NULL)
         return;
-    }
     qn->waiting = true;
-    prev->next = qn;
+    pred->next = qn;
     while (qn->waiting);
     cout << "Locked" << endl;
 }
 
-inline void MCSLock::release(pthread_key_t tlsIndex) {
-    volatile QNode *qn = (QNode *) TLSGETVALUE(tlsIndex);
-    volatile QNode *suc;
-    if (!(suc = qn->next)) {
-        if (InterlockedCompareExchangePointer((PVOID) & lock, NULL, (PVOID) qn) == qn) {
+void MCSLock::release(QNode** lock,TLSINDEX tlsIndex) {
+    volatile QNode *qn = (QNode*) TLSGETVALUE(tlsIndex);
+    volatile QNode *succ;
+    if (!(succ = qn->next)) {
+        if (InterlockedCompareExchangePointer((PVOID*)lock, NULL, (PVOID) qn) == qn)
             return;
-        }
         do {
-            suc = qn->next;
-        } while (!suc);
+            succ = qn->next;
+        } while(!succ);
     }
-    suc->waiting = false;
+    succ->waiting = false;
     cout << "Unlocked" << endl;
 }
 
 void MCSLock::init() {
     lock = new QNode();
+    cnt = 0;
 }
 
 void MCSLock::inc() {

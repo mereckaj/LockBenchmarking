@@ -12,7 +12,7 @@
 
 extern volatile UINT64 counter;
 extern int maxThreads;
-
+extern UINT64* counters;
 extern BakeryLock bakeryLock;
 extern TestAndSetLock testAndSetLock;
 extern TestAndTestAndSetLock testAndTestAndSetLock;

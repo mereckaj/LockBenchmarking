@@ -23,18 +23,20 @@ public:
 
 class MCSLock{
 public:
-    inline void acquire(pthread_key_t tlsIndex);
+    void acquire(QNode **lock, pthread_key_t tlsIndex);
 
-    inline void release(pthread_key_t tlsIndex);
+    void release(QNode **lock, pthread_key_t tlsIndex);
 
     void init();
 
     void inc();
 
     UINT64 getCounter();
+
+    QNode* lock;
 private:
     volatile UINT64 cnt;
-    volatile QNode* lock;
+
 };
 
 
