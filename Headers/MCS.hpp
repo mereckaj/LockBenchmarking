@@ -8,14 +8,13 @@
 #include <stddef.h>
 #include "helper.h"
 
-template <class T>
 class Aligned{
 public:
     void*operator new(size_t);
     void operator delete(void*);
 };
 
-class QNode : public Aligned<QNode>{
+class QNode : public Aligned{
 public:
     volatile bool waiting;
     volatile QNode* next;
@@ -33,7 +32,7 @@ public:
 
     UINT64 getCounter();
 
-    QNode* lock;
+    QNode** lock;
 private:
     volatile UINT64 cnt;
 

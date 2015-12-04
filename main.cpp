@@ -50,10 +50,10 @@ int main(int argc, char ** argv){
          * Print out the results
          */
 //        cout << i << "/" << counter << "/" << incCounter <<"/"<<((double)counter/(double)incCounter) << endl;
-        cout << i << "/" << bakeryLock.getCounter() << "/" << incCounter <<"/"<<((double)bakeryLock.getCounter()/(double)incCounter) << endl;
+//        cout << i << "/" << bakeryLock.getCounter() << "/" << incCounter <<"/"<<((double)bakeryLock.getCounter()/(double)incCounter) << endl;
 //        cout << i << "/" << testAndSetLock.getCounter() << "/" << incCounter <<"/"<<((double)testAndSetLock.getCounter()/(double)incCounter) << endl;
 //        cout << i << "/" << testAndTestAndSetLock.getCounter() << "/" << incCounter <<"/"<<((double)testAndTestAndSetLock.getCounter()/(double)incCounter) << endl;
-//        cout << i << "/" << testAndTestAndSetLock.getCounter() << "/" << incCounter <<"/"<<((double)testAndTestAndSetLock.getCounter()/(double)incCounter) << endl;
+        cout << i << "/" << mcsLock.getCounter() << "/" << incCounter <<"/"<<((double)mcsLock.getCounter()/(double)incCounter) << endl;
     }
 
     return EXIT_SUCCESS;

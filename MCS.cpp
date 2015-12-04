@@ -10,14 +10,12 @@
 using namespace std;
 int lineSize = getCacheLineSz();
 
-template <typename T>
-void *Aligned<T>::operator new(size_t sz) {
+void *Aligned::operator new(size_t sz) {
     size_t alignment = (sz + lineSize - 1) / lineSize * lineSize;
     return  _aligned_malloc(sz, alignment);
 }
 
-template <typename T>
-void Aligned<T>::operator delete(void *pVoid) {
+void Aligned::operator delete(void *pVoid) {
     _aligned_free(pVoid);
 }
 
@@ -30,7 +28,6 @@ void MCSLock::acquire(QNode** lock,TLSINDEX tlsIndex) {
     qn->waiting = true;
     pred->next = qn;
     while (qn->waiting);
-    cout << "Locked" << endl;
 }
 
 void MCSLock::release(QNode** lock,TLSINDEX tlsIndex) {
@@ -44,11 +41,11 @@ void MCSLock::release(QNode** lock,TLSINDEX tlsIndex) {
         } while(!succ);
     }
     succ->waiting = false;
-    cout << "Unlocked" << endl;
 }
 
 void MCSLock::init() {
-    lock = new QNode();
+    lock = new QNode*;
+    *lock = NULL;
     cnt = 0;
 }
 

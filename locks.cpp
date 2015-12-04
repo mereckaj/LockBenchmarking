@@ -20,7 +20,7 @@
  * 5 = MCS
  */
 
-#define LOCK_TYPE 1
+#define LOCK_TYPE 5
 
 
 BakeryLock bakeryLock;
@@ -45,8 +45,7 @@ WORKER worker(void *vthread) {
     /*
      * Create a node for this thread
      */
-    QNode *node = new QNode();
-    cout << "^ thread local" << endl;
+    QNode * node = new QNode();
     /*
      * Make the node local to this thread
      */
@@ -80,10 +79,11 @@ WORKER worker(void *vthread) {
             realCounter++;
             testAndTestAndSetLock.release();
 #elif LOCK_TYPE == 5
-            mcsLock.acquire(&mcsLock.lock,tlsIndex);
-            cout << tid << endl;
+            mcsLock.acquire(mcsLock.lock,tlsIndex);
+            mcsLock.inc();
+//            cout << tid << endl;
             realCounter++;
-            mcsLock.release(&mcsLock.lock,tlsIndex);
+            mcsLock.release(mcsLock.lock,tlsIndex);
 #endif
         }
         if ((getWallClockMS() - tstart) > NSECONDS * 1000) {
